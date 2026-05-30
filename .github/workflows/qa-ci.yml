@@ -1,4 +1,4 @@
-name: Backend QA CI
+name: Backend QA CI/CD
 
 on:
   push:
@@ -6,28 +6,31 @@ on:
       - qa
 
 jobs:
-  build-and-test:
+  build-test-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
+      # ==========================================
+      # PHASE 1: BUILD & TEST (The Safety Checks)
+      # ==========================================
+      
       - name: Checkout Code
         uses: actions/checkout@v4
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-size: '20'
+          node-version: '20' # Fixed from node-size
           cache: 'npm'
-          cache-dependency-path: './backend/package-lock.json'
+          cache-dependency-path: './package-lock.json' # Removed /backend/
 
       - name: Install Dependencies
-        run: |
-          cd backend
-          npm ci
+        # Removed the 'cd backend' command
+        run: npm ci
 
       - name: Test Environment Configuration
+        # Removed the 'cd backend' command
         run: |
-          cd backend
           # Run node in QA mode to check for startup configuration validation
           NODE_ENV=qa node -e "
             try {
@@ -45,9 +48,27 @@ jobs:
       - name: Test Build Docker Image
         uses: docker/build-push-action@v5
         with:
-          context: ./backend
-          file: ./backend/Dockerfile
-          push: false # Do not push to registry during test CI
+          context: .         # Removed ./backend
+          file: Dockerfile   # Removed ./backend/
+          push: false        # Do not push to registry during test CI
           tags: math-auth-backend:qa
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # ==========================================
+      # PHASE 2: AUTOMATED DEPLOYMENT
+      # ==========================================
+      
+      - name: Deploy to Hostinger Server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            echo "Starting QA Backend Deployment..."
+            cd /var/www/learning_server_guna_qa/backend
+            git pull origin qa
+            cd /var/www/learning_server_guna_qa
+            docker compose up -d --build backend-qa
+            echo "Deployment Successful!"
