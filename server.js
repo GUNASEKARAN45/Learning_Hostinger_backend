@@ -1,4 +1,13 @@
-require('dotenv').config();
+const path = require('path');
+const nodeEnv = process.env.NODE_ENV || 'local';
+const envPath = path.resolve(__dirname, `.env.${nodeEnv}`);
+
+require('dotenv').config({ path: envPath });
+require('dotenv').config(); // Fallback to default .env
+
+console.log(`ℹ️ Running in environment: "${nodeEnv}"`);
+console.log(`ℹ️ Loading configurations from: ${envPath}`);
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');

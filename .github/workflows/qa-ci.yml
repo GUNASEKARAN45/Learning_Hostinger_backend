@@ -1,0 +1,53 @@
+name: Backend QA CI
+
+on:
+  push:
+    branches:
+      - qa
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-size: '20'
+          cache: 'npm'
+          cache-dependency-path: './backend/package-lock.json'
+
+      - name: Install Dependencies
+        run: |
+          cd backend
+          npm ci
+
+      - name: Test Environment Configuration
+        run: |
+          cd backend
+          # Run node in QA mode to check for startup configuration validation
+          NODE_ENV=qa node -e "
+            try {
+              require('dotenv').config({ path: '.env.qa' });
+              console.log('✅ QA configuration loads successfully');
+            } catch (err) {
+              console.error('❌ QA config error:', err);
+              process.exit(1);
+            }
+          "
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Test Build Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: false # Do not push to registry during test CI
+          tags: math-auth-backend:qa
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
